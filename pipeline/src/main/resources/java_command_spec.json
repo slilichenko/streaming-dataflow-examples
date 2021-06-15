@@ -1,0 +1,4 @@
+{
+  "mainClass": "com.google.solutions.pipeline.EventProcessingPipeline",
+  "classPath": "/template/streaming-pipeline-template/libs/*:/template/streaming-pipeline-template/classes"
+}
