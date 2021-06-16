@@ -40,7 +40,7 @@ This project is a demo for several Beam techniques to do streaming analytics.
     ```
 Alternatively, delete the project you created.
 
-#Disclaimer
+## Disclaimer
 The techniques and code contained here are not supported by Google and is provided as-is 
 (under Apache license). This repo provides some options you can investigate, evaluate and employ 
 if you choose to.
