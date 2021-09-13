@@ -1,0 +1,21 @@
+{
+  "name": "Event Analyzer Pipeline",
+  "description": "Reads event data from a subscription, writes to a BigQuery table and sends suspicious activity events to a Pub/Sub topic",
+  "parameters": [
+    {
+      "name": "subscriptionId",
+      "label": "Subscription Id",
+      "helpText": "Pub/Sub subscription id in the format: "
+    },
+    {
+      "name": "suspiciousActivityTopic",
+      "label": "Suspicious activity Pub/Sub topic",
+      "helpText": "Pub/Sub topic id in the format: "
+    },
+    {
+      "name": "datasetName",
+      "label": "BigQuery data set to store data",
+      "helpText": "Just the bucket name, no gs:// prefix"
+    }
+  ]
+}

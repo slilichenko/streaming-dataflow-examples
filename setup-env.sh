@@ -15,5 +15,7 @@ export SUSPICIOUS_ACTIVITY_TOPIC=$(terraform output suspicious-activity-topic)
 export SUSPICIOUS_ACTIVITY_SUB=$(terraform output suspicious-activity-sub)
 export DATASET=$(terraform output event-monitoring-dataset)
 export DATAFLOW_TEMP_BUCKET=gs://$(terraform output dataflow-temp-bucket)
+export METADATA_BUCKET=$(terraform output dataflow-temp-bucket)
+export REGION=$(terraform output region)
 
 cd ..

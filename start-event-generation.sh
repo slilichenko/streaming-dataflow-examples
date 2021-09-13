@@ -2,7 +2,7 @@ set -e
 set -u
 
 QPS=$1
-JOB_NAME=event-generator
+JOB_NAME=event-generator-${QPS}
 gcloud dataflow flex-template run ${JOB_NAME} \
     --project=${PROJECT_ID} \
     --region=${GCP_REGION} \

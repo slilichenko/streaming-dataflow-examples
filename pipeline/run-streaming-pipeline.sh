@@ -1,7 +1,7 @@
 set -e
 set -u
 
-./gradlew run -DmainClass=com.google.solutions.pipeline.EventProcessingPipeline -Pargs="--streaming \
+./gradlew run -DmainClass=com.google.solutions.pipeline.EventProcessingPipeline -Pargs="\
  --jobName=event-processing\
  --project=${PROJECT_ID}\
  --region=${GCP_REGION} \
@@ -10,4 +10,5 @@ set -u
  --subscriptionId=${EVENT_SUB} \
  --suspiciousActivityTopic=${SUSPICIOUS_ACTIVITY_TOPIC} \
  --datasetName=${DATASET} \
- --enableStreamingEngine"
+ --enableStreamingEngine \
+ --diskSizeGb=30"

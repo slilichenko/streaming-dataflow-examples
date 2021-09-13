@@ -152,9 +152,15 @@ public class EventProcessingPipeline {
 
     PipelineOutputs outputs = mainProcessing(pipeline, options, inputs);
 
+    shutdownPipelineAfter(5000, inputs.rawPubSubMessages);
+
     persistOutputs(outputs, options);
 
     return pipeline.run();
+  }
+
+  private static void shutdownPipelineAfter(int count, PCollection<PubsubMessage> inputMessages) {
+//    inputMessages.apply("Count")
   }
 
   private static PipelineInputs getPipelineInputs(EventProcessingPipelineOptions options,
