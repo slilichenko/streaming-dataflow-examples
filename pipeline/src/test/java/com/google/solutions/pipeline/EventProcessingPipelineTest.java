@@ -25,7 +25,6 @@ import com.google.solutions.pipeline.model.Finding;
 import com.google.solutions.pipeline.model.Finding.Level;
 import com.google.solutions.pipeline.model.InvalidPubSubMessage;
 import com.google.solutions.pipeline.model.ProcessInfo;
-import com.google.solutions.pipeline.model.SourceIpFinding;
 import com.google.solutions.pipeline.model.UserEventFinding;
 import com.google.solutions.pipeline.rule.user.NewDestinationHostRule;
 import com.google.solutions.pipeline.rule.user.UserEventRule;
@@ -105,7 +104,7 @@ public class EventProcessingPipelineTest {
 
     inputs.processMetadata = prepareProcessMetadata(testPipeline);
     inputs.userEventRules = prepareUserEventRules(testPipeline);
-    PipelineOutputs outputs = mainProcessing(testPipeline,
+    PipelineOutputs outputs = mainProcessing(
         testPipeline.getOptions().as(EventProcessingPipelineOptions.class), inputs);
 
     // Check canonical events

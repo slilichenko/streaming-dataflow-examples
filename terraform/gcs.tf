@@ -16,8 +16,19 @@ output "event-generator-template" {
 resource "google_storage_bucket" "dataflow-temp" {
   name = "${var.project_id}-dataflow-temp"
   uniform_bucket_level_access = true
+  location = var.region
 }
 
 output "dataflow-temp-bucket" {
   value = google_storage_bucket.dataflow-temp.id
+}
+
+resource "google_storage_bucket" "events" {
+  name = "${var.project_id}-events"
+  uniform_bucket_level_access = true
+  location = var.region
+}
+
+output "events-bucket" {
+  value = google_storage_bucket.events.id
 }

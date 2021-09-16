@@ -16,9 +16,10 @@
 
 package com.google.solutions.pipeline.threshold;
 
+import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.io.GenerateSequence;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
-import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.values.PCollection;
 import org.junit.Rule;
 import org.junit.Test;
@@ -29,23 +30,29 @@ public class NumberOfElementsReachedTest {
   public final transient TestPipeline testPipeline = TestPipeline.create();
 
   @Test
-  public void testTransform() {
-    long middleThreshold = 3;
-    long endThreshold = 5;
-    long pastEndThreshold = 15;
-    PCollection<Integer> input = testPipeline.apply("Sequence", Create.of(1, 2, 3, 4, 5));
+  public void testNumberOfElementsReached() {
 
-    PCollection<String> middle = input
-        .apply("Check middle", new NumberOfElementsReached(middleThreshold));
-    PAssert.that(middle).containsInAnyOrder("Number of elements reached " + middleThreshold);
+    long elementCount = 25;
 
-    PCollection<String> end = input
-        .apply("Check end", new NumberOfElementsReached(endThreshold));
-    PAssert.that(end).containsInAnyOrder("Number of elements reached " + endThreshold);
+    PCollection<Long> input = testPipeline
+        .apply("Sequence", GenerateSequence.from(0).to(elementCount));
 
-    PCollection<String> pastEnd = input
-        .apply("Check past end", new NumberOfElementsReached(pastEndThreshold));
-    PAssert.that(pastEnd).empty();
+    PAssert.that(
+        input.apply("Check middle",
+            new NumberOfElementsReached<>(elementCount - 2, "Reached middle"))
+            .setCoder(StringUtf8Coder.of())
+    ).containsInAnyOrder("Reached middle");
+
+    PAssert.that(
+        input.apply("Check end", new NumberOfElementsReached<>(elementCount, "Reached end"))
+            .setCoder(StringUtf8Coder.of())
+    ).containsInAnyOrder("Reached end");
+
+    PAssert.that(
+        input.apply("Check past end",
+            new NumberOfElementsReached<>(elementCount + 1, "Should never reach"))
+            .setCoder(StringUtf8Coder.of())
+    ).empty();
 
     testPipeline.run().waitUntilFinish();
   }

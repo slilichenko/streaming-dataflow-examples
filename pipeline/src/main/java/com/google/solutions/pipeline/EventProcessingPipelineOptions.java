@@ -53,6 +53,11 @@ public interface EventProcessingPipelineOptions extends DataflowPipelineOptions 
 
   void setEventsTable(String value);
 
+  @Description("Optional GCS bucket for exporting events")
+  String getGCSBucketEventExport();
+
+  void setGCSBucketEventExport(String value);
+
   @Description("Table name for threats")
   @Validation.Required
   @Default.String("threats")

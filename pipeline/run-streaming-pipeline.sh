@@ -10,5 +10,6 @@ set -u
  --subscriptionId=${EVENT_SUB} \
  --suspiciousActivityTopic=${SUSPICIOUS_ACTIVITY_TOPIC} \
  --datasetName=${DATASET} \
+ --GCSBucketEventExport=gs://${EVENTS_BUCKET} \
  --enableStreamingEngine \
  --diskSizeGb=30"

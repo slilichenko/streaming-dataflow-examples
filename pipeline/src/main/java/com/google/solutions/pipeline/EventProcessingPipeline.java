@@ -16,6 +16,8 @@
 package com.google.solutions.pipeline;
 
 
+import com.google.api.client.json.GenericJson;
+import com.google.api.client.json.gson.GsonFactory;
 import com.google.solutions.pipeline.model.Event;
 import com.google.solutions.pipeline.model.InvalidPubSubMessage;
 import com.google.solutions.pipeline.model.ProcessInfo;
@@ -23,23 +25,35 @@ import com.google.solutions.pipeline.model.SourceIpFinding;
 import com.google.solutions.pipeline.model.UserEventFinding;
 import com.google.solutions.pipeline.rule.user.NewDestinationHostRule;
 import com.google.solutions.pipeline.rule.user.UserEventRule;
+import com.google.solutions.pipeline.threshold.NumberOfElementsReached;
 import com.google.solutions.pipeline.transform.AnalizeSourceIpEvents;
 import com.google.solutions.pipeline.transform.AnalyzeUserEvents;
 import com.google.solutions.pipeline.transform.EventToTableRow;
 import com.google.solutions.pipeline.transform.InvalidPubSubToTableRow;
 import com.google.solutions.pipeline.transform.PubSubMessageToEvent;
 import com.google.solutions.pipeline.transform.SourceIpFindingToJsonString;
+import com.google.solutions.pipeline.transform.StopPipeline;
+import com.google.solutions.pipeline.transform.StopPipeline.HowToStop;
 import com.google.solutions.pipeline.transform.UserEventFindingToJSonString;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
+import org.apache.beam.sdk.io.FileBasedSink;
+import org.apache.beam.sdk.io.FileBasedSink.FilenamePolicy;
+import org.apache.beam.sdk.io.FileBasedSink.OutputFileHints;
 import org.apache.beam.sdk.io.FileIO;
+import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.GenerateSequence;
+import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.fs.MatchResult.Metadata;
+import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.CreateDisposition;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.WriteDisposition;
@@ -61,8 +75,11 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.windowing.AfterProcessingTime;
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
+import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
+import org.apache.beam.sdk.transforms.windowing.PaneInfo;
 import org.apache.beam.sdk.transforms.windowing.Repeatedly;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.PBegin;
@@ -74,7 +91,11 @@ import org.apache.beam.sdk.values.PDone;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.joda.time.Duration;
+import org.joda.time.Instant;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,6 +137,7 @@ public class EventProcessingPipeline {
 
   public static class PipelineOutputs {
 
+    PCollection<PubsubMessage> rawPubSubMessages;
     PCollection<SourceIpFinding> sourceIpFindings;
     PCollection<Event> canonicalEvents;
     PCollection<InvalidPubSubMessage> invalidPubSubMessages;
@@ -150,7 +172,7 @@ public class EventProcessingPipeline {
 
     PipelineInputs inputs = getPipelineInputs(options, pipeline);
 
-    PipelineOutputs outputs = mainProcessing(pipeline, options, inputs);
+    PipelineOutputs outputs = mainProcessing(options, inputs);
 
     shutdownPipelineAfter(5000, inputs.rawPubSubMessages);
 
@@ -159,8 +181,25 @@ public class EventProcessingPipeline {
     return pipeline.run();
   }
 
-  private static void shutdownPipelineAfter(int count, PCollection<PubsubMessage> inputMessages) {
-//    inputMessages.apply("Count")
+  private static void shutdownPipelineAfter(int maxInputMessages,
+      PCollection<PubsubMessage> inputMessages) {
+    if (true) {
+      return;
+    }
+    inputMessages
+        .apply("Count", new NumberOfElementsReached<>(maxInputMessages, "Read "
+            + maxInputMessages + " messages"))
+        .apply("Send shutdown signal", ParDo.of(
+            new DoFn<String, StopPipeline.StopInstruction>() {
+              @ProcessElement
+              public void sendInstruction(@Element String message,
+                  OutputReceiver<StopPipeline.StopInstruction> outputReceiver) {
+                outputReceiver
+                    .output(StopPipeline.StopInstruction.create(HowToStop.cancel, message));
+              }
+            }
+        ))
+        .apply("Stop the pipeline", new StopPipeline());
   }
 
   private static PipelineInputs getPipelineInputs(EventProcessingPipelineOptions options,
@@ -223,9 +262,10 @@ public class EventProcessingPipeline {
   }
 
   public static PipelineOutputs mainProcessing(
-      Pipeline pipeline, EventProcessingPipelineOptions options,
-      PipelineInputs inputs) throws CannotProvideCoderException {
+      EventProcessingPipelineOptions options,
+      PipelineInputs inputs) {
     PipelineOutputs outputs = new PipelineOutputs();
+    outputs.rawPubSubMessages = inputs.rawPubSubMessages;
 
     // Convert raw inputs into canonical messages. Processing can vary slightly depending on the source.
     PCollection<Event> canonicalEvents;
@@ -276,8 +316,62 @@ public class EventProcessingPipeline {
 
   public static void persistOutputs(PipelineOutputs outputs,
       EventProcessingPipelineOptions options) {
-    outputs.canonicalEvents.apply("Persist Events",
+    outputs.canonicalEvents.apply("Persist Events to BQ",
         new PersistEvents(options.getDatasetName(), options.getEventsTable()));
+
+    final String gcsBucketEventExport = options.getGCSBucketEventExport();
+    if (outputs.rawPubSubMessages != null && gcsBucketEventExport != null) {
+      outputs.rawPubSubMessages
+          .apply("PubSub to Text", ParDo.of(new DoFn<PubsubMessage, String>() {
+            @ProcessElement
+            public void extractText(@Element PubsubMessage message,
+                OutputReceiver<String> outputReceiver) {
+              GsonFactory factory = GsonFactory.getDefaultInstance();
+              try {
+                GenericJson json = factory
+                    .createJsonParser(new ByteArrayInputStream(message.getPayload())).parse(
+                        GenericJson.class);
+                json.setFactory(factory);
+                outputReceiver.output(json.toString());
+              } catch (IOException e) {
+                // Do nothing - parsing errors are captured in another branch of the pipeline
+              }
+            }
+          }))
+          .apply("Window into every minute",
+              Window.into(FixedWindows.of(Duration.standardMinutes(1))))
+          .apply("Persist Events to GCS", TextIO.write()
+              .to(new FilenamePolicy() {
+                @Override
+                public ResourceId windowedFilename(int shardNumber, int numShards,
+                    BoundedWindow window,
+                    PaneInfo paneInfo, OutputFileHints outputFileHints) {
+
+                  // TODO: needs to be set once per JVM.
+                  DateTimeFormatter dateFormat = DateTimeFormat.forPattern("yyyy-MM-dd");
+                  DateTimeFormatter hourFormat = DateTimeFormat.forPattern("HH");
+                  DateTimeFormatter minuteFormat = DateTimeFormat.forPattern("mm");
+                  Instant windowStart = ((IntervalWindow) window).start();
+                  ResourceId file = FileSystems
+                      .matchNewResource(gcsBucketEventExport + "/data/" +
+                          "eventDate=" + dateFormat.print(windowStart) + '/' +
+                          "eventHour=" + hourFormat.print(windowStart) + '/' +
+                          "eventMinute=" + minuteFormat.print(windowStart) + '/' +
+                          UUID.randomUUID() + ".json", false);
+                  return file;
+                }
+
+                @Override
+                public @Nullable ResourceId unwindowedFilename(int shardNumber, int numShards,
+                    OutputFileHints outputFileHints) {
+                  throw new UnsupportedOperationException("Not implemented");
+                }
+              })
+              .withWindowedWrites()
+              .withTempDirectory(FileBasedSink
+                  .convertToFileResourceIfPossible(gcsBucketEventExport + "/temp"))
+              .withNumShards(1));
+    }
 
     outputs.invalidPubSubMessages.apply("Persist Invalid Messages",
         new InvalidMessageOutput(options.getDatasetName(), options.getInvalidMessagesTable()));
@@ -343,6 +437,7 @@ public class EventProcessingPipeline {
 
   private static class InvalidMessageOutput extends
       PTransform<PCollection<InvalidPubSubMessage>, POutput> {
+
     private final static long serialVersionUID = 1L;
 
     private String invalidMessagesTable;
@@ -367,6 +462,7 @@ public class EventProcessingPipeline {
 
   private static class ProcessMetadataSupplier extends
       PTransform<PBegin, PCollectionView<Map<String, ProcessInfo>>> {
+
     private static final long serialVersionUID = 1L;
 
     private String datasetName;
@@ -394,7 +490,8 @@ public class EventProcessingPipeline {
     }
   }
 
-  private static class PersistEvents extends PTransform<PCollection<Event>,POutput> {
+  private static class PersistEvents extends PTransform<PCollection<Event>, POutput> {
+
     private final static long serialVersionUID = 1L;
 
     private String datasetName;

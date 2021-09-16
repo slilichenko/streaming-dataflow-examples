@@ -27,43 +27,48 @@ import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.TypeDescriptors;
 
-public class NumberOfElementsReached extends
-    PTransform<PCollection<Integer>, PCollection<String>> {
+public class NumberOfElementsReached<InputT, OutputT> extends
+    PTransform<PCollection<InputT>, PCollection<OutputT>> {
 
+  private final static long serialVersionUID = 1L;
   private final long threshold;
+  private final OutputT output;
 
-  public NumberOfElementsReached(long threshold) {
+  public NumberOfElementsReached(long threshold, OutputT output) {
     this.threshold = threshold;
+    this.output = output;
   }
 
 
   @Override
-  public PCollection<String> expand(PCollection<Integer> input) {
+  public PCollection<OutputT> expand(PCollection<InputT> input) {
     return input.apply("Into Global Window", Window.into(new GlobalWindows()))
         .apply("Map to KV", MapElements.into(
             TypeDescriptors.kvs(TypeDescriptors.booleans(), TypeDescriptors.booleans()
             )).via(value -> KV.of(Boolean.TRUE, Boolean.TRUE)))
-        .apply("Count", ParDo.of(new Counter(threshold)));
+        .apply("Count and Output", ParDo.of(new Counter<>(threshold, output)));
   }
 
-  static class Counter extends DoFn<KV<Boolean, Boolean>, String> {
+  static class Counter<OutputT> extends DoFn<KV<Boolean, Boolean>, OutputT> {
+
+    private final static long serialVersionUID = 1L;
 
     private final long threshold;
+    private final OutputT output;
+
     @StateId("number-of-elements")
     private final StateSpec<ValueState<Long>> counterSpec = StateSpecs.value();
-    @StateId("threshold-reached")
-    private final StateSpec<ValueState<Boolean>> thresholdReachedSpec = StateSpecs.value();
 
-    public Counter(long threshold) {
+    public Counter(long threshold, OutputT output) {
       this.threshold = threshold;
+      this.output = output;
     }
 
     @ProcessElement
     public void count(@StateId("number-of-elements") ValueState<Long> counterState,
-        OutputReceiver<String> outputReceiver) {
+        OutputReceiver<OutputT> outputReceiver) {
 
       Long numberOfElements = counterState.read();
       long newNumberOfElements = numberOfElements == null ? 1 : numberOfElements + 1;
@@ -73,9 +78,9 @@ public class NumberOfElementsReached extends
         return;
       }
       if (newNumberOfElements == threshold) {
-        outputReceiver.output("Number of elements reached " + threshold);
+        outputReceiver.output(output);
       }
-      counterState.write(Long.valueOf(newNumberOfElements));
+      counterState.write(newNumberOfElements);
     }
   }
 }
