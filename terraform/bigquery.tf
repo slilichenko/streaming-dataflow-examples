@@ -4,6 +4,17 @@ resource "google_bigquery_dataset" "event_monitoring" {
   location = var.bigquery_dataset_location
 }
 
+resource "google_bigquery_dataset_iam_member" "editor" {
+  dataset_id = google_bigquery_dataset.event_monitoring.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.looker-sa.email}"
+}
+
+resource "google_project_iam_member" "jobUser" {
+  role       = "roles/bigquery.jobUser"
+  member     = "serviceAccount:${google_service_account.looker-sa.email}"
+}
+
 output "event-monitoring-dataset" {
   value = google_bigquery_dataset.event_monitoring.dataset_id
 }

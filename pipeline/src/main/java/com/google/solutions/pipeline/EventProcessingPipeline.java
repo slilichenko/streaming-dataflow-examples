@@ -24,6 +24,7 @@ import com.google.solutions.pipeline.model.ProcessInfo;
 import com.google.solutions.pipeline.model.SourceIpFinding;
 import com.google.solutions.pipeline.model.UserEventFinding;
 import com.google.solutions.pipeline.rule.user.NewDestinationHostRule;
+import com.google.solutions.pipeline.rule.user.ProcessNameRule;
 import com.google.solutions.pipeline.rule.user.UserEventRule;
 import com.google.solutions.pipeline.threshold.NumberOfElementsReached;
 import com.google.solutions.pipeline.transform.AnalizeSourceIpEvents;
@@ -248,6 +249,7 @@ public class EventProcessingPipeline {
                                  // TODO: externalize rule configuration
                                  Set<UserEventRule> rules = new HashSet<>();
                                  rules.add(new NewDestinationHostRule());
+                                 rules.add(new ProcessNameRule());
 
                                  out.output(rules);
                                }

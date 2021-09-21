@@ -9,6 +9,7 @@ cd terraform
 terraform init && terraform apply
 
 export EVENT_GENERATOR_TEMPLATE=$(terraform output event-generator-template)
+export EVENT_GENERATOR_TEMPLATE_WITH_THREATS=$(terraform output event-generator-template-with-threats)
 export EVENT_TOPIC=$(terraform output event-topic)
 export EVENT_SUB=$(terraform output event-sub)
 export SUSPICIOUS_ACTIVITY_TOPIC=$(terraform output suspicious-activity-topic)
