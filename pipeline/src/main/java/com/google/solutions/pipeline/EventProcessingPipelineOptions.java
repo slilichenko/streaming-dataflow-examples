@@ -53,6 +53,13 @@ public interface EventProcessingPipelineOptions extends DataflowPipelineOptions 
 
   void setEventsTable(String value);
 
+  @Description("Table name for user event findings")
+  @Validation.Required
+  @Default.String("findings")
+  String getUserEventFindingsTable();
+
+  void setUserEventFindingsTable(String value);
+
   @Description("Optional GCS bucket for exporting events")
   String getGCSBucketEventExport();
 
@@ -87,4 +94,7 @@ public interface EventProcessingPipelineOptions extends DataflowPipelineOptions 
   String getSuspiciousActivityTopic();
   void setSuspiciousActivityTopic(String value);
 
+  @Description("Shutdown the pipeline after the number of messages read")
+  Long getMaxMessagesToRead();
+  void setMaxMessagesToRead(Long value);
 }

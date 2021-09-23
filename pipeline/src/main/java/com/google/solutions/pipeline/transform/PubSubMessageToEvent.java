@@ -18,6 +18,7 @@ package com.google.solutions.pipeline.transform;
 
 import com.google.api.client.json.GenericJson;
 import com.google.api.client.json.JsonParser;
+import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.solutions.pipeline.EventProcessingPipeline;
 import com.google.solutions.pipeline.converter.ProxyRequestConverter;
@@ -34,7 +35,7 @@ import org.apache.beam.sdk.values.PCollectionView;
 public class PubSubMessageToEvent extends DoFn<PubsubMessage, Event> {
   private final static long serialVersionUID = 1L;
 
-  private JacksonFactory jacksonFactory;
+  private GsonFactory jacksonFactory;
   private PCollectionView<Map<String,ProcessInfo>> processMetadataSideInput;
 
   public PubSubMessageToEvent(
@@ -45,7 +46,7 @@ public class PubSubMessageToEvent extends DoFn<PubsubMessage, Event> {
 
   @Setup
   public void setup() {
-    jacksonFactory = new JacksonFactory();
+    jacksonFactory = new GsonFactory();
   }
 
   @ProcessElement

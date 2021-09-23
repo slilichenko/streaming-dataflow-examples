@@ -113,7 +113,7 @@ public class UserEventRuleRunner extends
       var findings = rule.analyze(userEventContext);
       for (var finding : findings) {
         UserEventFinding userEventFinding = UserEventFinding
-            .create(event.getRequestTime(), userId, finding);
+            .create(event.getRequestTime(), userId, finding, event.getSourceIp());
         if (finding.getLevel() == Level.critical) {
           context.output(userEventFinding);
           continue;

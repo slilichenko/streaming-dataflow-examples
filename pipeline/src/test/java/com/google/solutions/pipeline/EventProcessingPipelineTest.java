@@ -104,8 +104,7 @@ public class EventProcessingPipelineTest {
 
     inputs.processMetadata = prepareProcessMetadata(testPipeline);
     inputs.userEventRules = prepareUserEventRules(testPipeline);
-    PipelineOutputs outputs = mainProcessing(
-        testPipeline.getOptions().as(EventProcessingPipelineOptions.class), inputs);
+    PipelineOutputs outputs = mainProcessing(inputs);
 
     // Check canonical events
     PAssert.that("Canonical events", outputs.canonicalEvents).satisfies(events -> {
@@ -138,10 +137,10 @@ public class EventProcessingPipelineTest {
     PAssert.that("User id findings", outputs.userEventFindings).containsInAnyOrder(
         UserEventFinding.create(eventPublishTime, user,
             Finding.create(Level.warning, NewDestinationHostRule.RULE_ID,
-                "Newly accessed host: 2.2.2.2")),
+                "Newly accessed host: 2.2.2.2"), "111.222.333.444"),
         UserEventFinding.create(eventPublishTime, user,
             Finding.create(Level.warning, NewDestinationHostRule.RULE_ID,
-                "Newly accessed host: 2.2.2.3"))
+                "Newly accessed host: 2.2.2.3"), "222.333.444.555")
     );
 
     testPipeline.run();

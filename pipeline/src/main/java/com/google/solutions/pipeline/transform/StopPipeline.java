@@ -16,9 +16,18 @@
 
 package com.google.solutions.pipeline.transform;
 
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import com.google.api.services.dataflow.Dataflow;
+import com.google.api.services.dataflow.Dataflow.Projects.Locations.Jobs.Update;
+import com.google.api.services.dataflow.model.Job;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auto.value.AutoValue;
 import com.google.solutions.pipeline.transform.StopPipeline.StopInstruction;
 import org.apache.beam.runners.dataflow.options.DataflowWorkerHarnessOptions;
+import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.schemas.AutoValueSchema;
+import org.apache.beam.sdk.schemas.annotations.DefaultSchema;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -29,19 +38,35 @@ import org.slf4j.LoggerFactory;
 
 public class StopPipeline extends PTransform<PCollection<StopInstruction>, PDone> {
 
-  public enum HowToStop {cancel, drain}
+  private static final long serialVersionUID = 1L;
 
+  public enum HowToStop {
+    cancel {
+      String getRequestedState() {
+        return "JOB_STATE_CANCELLED";
+      }
+    },
+    drain {
+      String getRequestedState() {
+        return "JOB_STATE_DRAINED";
+      }
+    };
+
+    abstract String getRequestedState();
+  }
+
+  @DefaultSchema(AutoValueSchema.class)
   @AutoValue
   public abstract static class StopInstruction {
 
-    abstract HowToStop how();
+    abstract HowToStop getHow();
 
-    abstract String reason();
+    abstract String getReason();
 
-    public static StopInstruction create(HowToStop how, String reason) {
+    public static StopInstruction create(HowToStop newHow, String newReason) {
       return builder()
-          .how(how)
-          .reason(reason)
+          .setHow(newHow)
+          .setReason(newReason)
           .build();
     }
 
@@ -52,9 +77,9 @@ public class StopPipeline extends PTransform<PCollection<StopInstruction>, PDone
     @AutoValue.Builder
     public abstract static class Builder {
 
-      public abstract Builder how(HowToStop how);
+      public abstract Builder setHow(HowToStop newHow);
 
-      public abstract Builder reason(String reason);
+      public abstract Builder setReason(String newReason);
 
       public abstract StopInstruction build();
     }
@@ -64,34 +89,53 @@ public class StopPipeline extends PTransform<PCollection<StopInstruction>, PDone
 
   @Override
   public PDone expand(PCollection<StopInstruction> input) {
-    String jobId = null;
-    try {
-      DataflowWorkerHarnessOptions workerHarnessOptions =
-          input.getPipeline().getOptions().as(DataflowWorkerHarnessOptions.class);
-      jobId = workerHarnessOptions.getJobId();
-    } catch (Exception e) {
-      LOG.error(
-          "Unable to find Dataflow job id. You can ignore this message is you are running under a different runner.",
-          e);
-    }
-    if (jobId != null) {
-      input.apply("Stop the pipeline", ParDo.of(new PipelineStopper(jobId)));
-    }
+    input.apply("Stop the pipeline", ParDo.of(new PipelineStopper()));
     return PDone.in(input.getPipeline());
   }
 
   static class PipelineStopper extends DoFn<StopInstruction, Boolean> {
 
     private static final long serialVersionUID = 1L;
-    private final String jobId;
-
-    public PipelineStopper(String jobId) {
-      this.jobId = jobId;
-    }
 
     @ProcessElement
-    public void stop(@Element String reason) {
-      LOG.info("Attempting to stop the Dataflow job " + jobId);
+    public void stop(@Element StopInstruction instruction, ProcessContext context) {
+      DataflowWorkerHarnessOptions harnessOptions = getDataflowJobId(context.getPipelineOptions());
+      if (harnessOptions == null) {
+        return;
+      }
+      String jobId = harnessOptions.getJobId();
+      LOG.info("Attempting to " + instruction.getHow() +
+          " the Dataflow job " + jobId + " because " + instruction.getReason());
+
+      try {
+        GoogleCredentials workerCredentials = GoogleCredentials.getApplicationDefault();
+        Dataflow dataflow = new Dataflow.Builder(GoogleNetHttpTransport.newTrustedTransport(),
+            new GsonFactory(), null)
+            .setApplicationName("Dataflow Worker")
+            .build();
+        Job job = new Job().setRequestedState(instruction.getHow().getRequestedState());
+        dataflow.projects().locations().jobs().update(
+            harnessOptions.getProject(),
+            harnessOptions.getRegion(),
+            jobId, job).setAccessToken(workerCredentials.getAccessToken().getTokenValue()).execute();
+        LOG.info("Successfully requested stopping the Dataflow job " + jobId);
+      } catch (Exception e) {
+        LOG.error("Failed to stop the Dataflow job " + jobId, e);
+      }
+    }
+  }
+
+  private static DataflowWorkerHarnessOptions getDataflowJobId(PipelineOptions options) {
+    String jobId = null;
+    try {
+      DataflowWorkerHarnessOptions workerHarnessOptions = options
+          .as(DataflowWorkerHarnessOptions.class);
+      return workerHarnessOptions;
+    } catch (Exception e) {
+      LOG.error(
+          "Unable to find Dataflow job id. You can ignore this message is you are running under a different runner.",
+          e);
+      return null;
     }
   }
 }

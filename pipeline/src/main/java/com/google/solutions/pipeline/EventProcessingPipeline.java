@@ -36,6 +36,7 @@ import com.google.solutions.pipeline.transform.SourceIpFindingToJsonString;
 import com.google.solutions.pipeline.transform.StopPipeline;
 import com.google.solutions.pipeline.transform.StopPipeline.HowToStop;
 import com.google.solutions.pipeline.transform.UserEventFindingToJSonString;
+import com.google.solutions.pipeline.transform.UserEventFindingToTableRow;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
@@ -66,7 +67,6 @@ import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessageWithAttributesAndMessageId
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.schemas.NoSuchSchemaException;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Filter;
@@ -153,7 +153,7 @@ public class EventProcessingPipeline {
    *
    * @param args The command-line arguments to the pipeline.
    */
-  public static void main(String[] args) throws NoSuchSchemaException, CannotProvideCoderException {
+  public static void main(String[] args) throws CannotProvideCoderException {
     EventProcessingPipelineOptions options =
         PipelineOptionsFactory.fromArgs(args)
             .withValidation()
@@ -167,30 +167,29 @@ public class EventProcessingPipeline {
    *
    * @return result
    */
-  public static PipelineResult run(EventProcessingPipelineOptions options)
-      throws CannotProvideCoderException {
+  public static PipelineResult run(EventProcessingPipelineOptions options) {
     Pipeline pipeline = Pipeline.create(options);
 
     PipelineInputs inputs = getPipelineInputs(options, pipeline);
 
-    PipelineOutputs outputs = mainProcessing(options, inputs);
+    PipelineOutputs outputs = mainProcessing(inputs);
 
-    shutdownPipelineAfter(5000, inputs.rawPubSubMessages);
+    Long maxMessagesToRead = options.getMaxMessagesToRead();
+    if(maxMessagesToRead != null) {
+      shutdownPipelineAfter(maxMessagesToRead.longValue(), inputs.rawPubSubMessages);
+    }
 
     persistOutputs(outputs, options);
 
     return pipeline.run();
   }
 
-  private static void shutdownPipelineAfter(int maxInputMessages,
+  private static void shutdownPipelineAfter(long maxInputMessages,
       PCollection<PubsubMessage> inputMessages) {
-    if (true) {
-      return;
-    }
     inputMessages
-        .apply("Count", new NumberOfElementsReached<>(maxInputMessages, "Read "
+        .apply("Wait until " + inputMessages + " read", new NumberOfElementsReached<>(maxInputMessages, "read at least "
             + maxInputMessages + " messages"))
-        .apply("Send shutdown signal", ParDo.of(
+        .apply("Send cancel signal", ParDo.of(
             new DoFn<String, StopPipeline.StopInstruction>() {
               @ProcessElement
               public void sendInstruction(@Element String message,
@@ -264,7 +263,6 @@ public class EventProcessingPipeline {
   }
 
   public static PipelineOutputs mainProcessing(
-      EventProcessingPipelineOptions options,
       PipelineInputs inputs) {
     PipelineOutputs outputs = new PipelineOutputs();
     outputs.rawPubSubMessages = inputs.rawPubSubMessages;
@@ -389,7 +387,7 @@ public class EventProcessingPipeline {
           }
         });
 
-    outputs.userEventFindings.apply("Persist User Event Findings",
+    outputs.userEventFindings.apply("Send User Event Finding Notifications",
         new PTransform<>() {
           @Override
           public POutput expand(PCollection<UserEventFinding> input) {
@@ -397,6 +395,20 @@ public class EventProcessingPipeline {
                 .apply("User Event Findings to JSon", ParDo.of(new UserEventFindingToJSonString()))
                 .apply("Publish User Event Findings to PubSub",
                     PubsubIO.writeStrings().to(options.getSuspiciousActivityTopic()));
+          }
+        });
+
+    outputs.userEventFindings.apply("Persist User Event Findings",
+        new PTransform<>() {
+          @Override
+          public POutput expand(PCollection<UserEventFinding> input) {
+            return input
+                .apply("User Event Findings to Row", ParDo.of(new UserEventFindingToTableRow()))
+                .apply("Save to BigQuery",
+                    BigQueryIO.writeTableRows().to(
+                        options.getDatasetName() + '.' + options.getUserEventFindingsTable())
+                        .withWriteDisposition(WriteDisposition.WRITE_APPEND)
+                        .withCreateDisposition(CreateDisposition.CREATE_NEVER));
           }
         });
   }

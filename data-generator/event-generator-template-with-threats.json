@@ -2,9 +2,9 @@
   "bytes_sent": {{integer(300, 5000)}},
   "destination_ip": "10.1.2.{{integer(1,254)}}", 
   "destination_port": {{random(80, 443, 8080)}},
-  "process": "{{random("process1", "process2", "virus1", "another-virus")}}",
+  "process": "{{random("process1", "process2", "process3", "virus1", "another-virus")}}",
   "request_timestamp": {{timestamp()}},
   "bytes_received": {{integer(200, 15000)}},
-  "source_ip": "192.5.8.{{integer(1,254)}}",
+  "source_ip": "192.5.9.{{integer(1,254)}}",
   "user": "user{{integer(1,20)}}"
 }

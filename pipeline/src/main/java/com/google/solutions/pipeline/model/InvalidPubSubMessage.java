@@ -30,6 +30,7 @@ public abstract class InvalidPubSubMessage {
 
   public abstract String getFailureReason();
 
+  @SuppressWarnings("mutable")
   public abstract byte[] getPayload();
 
   @Nullable

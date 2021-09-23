@@ -45,6 +45,7 @@ public class UserEventFindingToJSonString extends DoFn<UserEventFinding, String>
         .set("type", "user-event-finding")
         .set("request_ts", userEventFinding.getRequestTime().toString())
         .set("user_id", userEventFinding.getUserId())
+        .set("source_ip", userEventFinding.getSourceIp())
         .set("level", userEventFinding.getFinding().getLevel().toString())
         .set("description", userEventFinding.getFinding().getDescription());
 

@@ -27,13 +27,16 @@ public abstract class UserEventFinding {
   public abstract Instant getRequestTime();
   public abstract String getUserId();
   public abstract Finding getFinding();
+  public abstract String getSourceIp();
 
   public static UserEventFinding create(Instant newRequestTime, String newUserId,
-      Finding newFinding) {
+      Finding newFinding,
+      String newSourceIp) {
     return builder()
         .setRequestTime(newRequestTime)
         .setUserId(newUserId)
         .setFinding(newFinding)
+        .setSourceIp(newSourceIp)
         .build();
   }
 
@@ -50,6 +53,8 @@ public abstract class UserEventFinding {
     public abstract Builder setUserId(String newUserId);
 
     public abstract Builder setFinding(Finding newFinding);
+
+    public abstract Builder setSourceIp(String newSourceIp);
 
     public abstract UserEventFinding build();
   }
