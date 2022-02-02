@@ -1,6 +1,7 @@
 resource "google_storage_bucket" "data-generator-template" {
   name = "${var.project_id}-data-generator-template"
   uniform_bucket_level_access = true
+  location = "${var.region}"
 }
 
 resource "google_storage_bucket_object" "event-generator-template" {

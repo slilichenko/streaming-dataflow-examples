@@ -1,7 +1,7 @@
 resource "google_bigquery_dataset" "event_monitoring" {
-  dataset_id = "event_monitoring"
+  dataset_id    = "event_monitoring"
   friendly_name = "Event Monitoring Dataset"
-  location = var.bigquery_dataset_location
+  location      = var.bigquery_dataset_location
 }
 
 resource "google_bigquery_dataset_iam_member" "editor" {
@@ -11,8 +11,9 @@ resource "google_bigquery_dataset_iam_member" "editor" {
 }
 
 resource "google_project_iam_member" "jobUser" {
-  role       = "roles/bigquery.jobUser"
-  member     = "serviceAccount:${google_service_account.looker-sa.email}"
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.looker-sa.email}"
+  project = "${var.project_id}"
 }
 
 output "event-monitoring-dataset" {
@@ -21,14 +22,14 @@ output "event-monitoring-dataset" {
 
 resource "google_bigquery_table" "invalid_messages" {
   deletion_protection = false
-  dataset_id = google_bigquery_dataset.event_monitoring.dataset_id
-  table_id = "invalid_messages"
-  description = "Failed PubSub payloads"
+  dataset_id          = google_bigquery_dataset.event_monitoring.dataset_id
+  table_id            = "invalid_messages"
+  description         = "Failed PubSub payloads"
   time_partitioning {
-    type = "DAY"
+    type  = "DAY"
     field = "published_ts"
   }
-  schema = <<EOF
+  schema              = <<EOF
 [
   {
     "mode": "REQUIRED",
@@ -78,9 +79,9 @@ EOF
 
 resource "google_bigquery_table" "process_info" {
   deletion_protection = false
-  dataset_id = google_bigquery_dataset.event_monitoring.dataset_id
-  table_id = "process_info"
-  description = "Details about processes"
+  dataset_id          = google_bigquery_dataset.event_monitoring.dataset_id
+  table_id            = "process_info"
+  description         = "Details about processes"
 
   schema = <<EOF
 [
@@ -110,14 +111,14 @@ EOF
 
 resource "google_bigquery_table" "events" {
   deletion_protection = false
-  dataset_id = google_bigquery_dataset.event_monitoring.dataset_id
-  table_id = "events"
-  description = "All events"
+  dataset_id          = google_bigquery_dataset.event_monitoring.dataset_id
+  table_id            = "events"
+  description         = "All events"
   time_partitioning {
-    type = "DAY"
+    type  = "DAY"
     field = "request_ts"
   }
-  schema = <<EOF
+  schema              = <<EOF
 [
   {
     "mode": "REQUIRED",
@@ -171,14 +172,14 @@ EOF
 
 resource "google_bigquery_table" "findings" {
   deletion_protection = false
-  dataset_id = google_bigquery_dataset.event_monitoring.dataset_id
-  table_id = "findings"
-  description = "Suspicious activity"
+  dataset_id          = google_bigquery_dataset.event_monitoring.dataset_id
+  table_id            = "findings"
+  description         = "Suspicious activity"
   time_partitioning {
-    type = "DAY"
+    type  = "DAY"
     field = "request_ts"
   }
-  schema = <<EOF
+  schema              = <<EOF
 [
   {
     "mode": "REQUIRED",
