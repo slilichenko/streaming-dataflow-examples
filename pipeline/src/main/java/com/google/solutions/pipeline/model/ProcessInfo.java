@@ -18,10 +18,7 @@ package com.google.solutions.pipeline.model;
 
 import java.io.Serializable;
 import java.util.Objects;
-import org.apache.beam.sdk.coders.AvroCoder;
-import org.apache.beam.sdk.coders.DefaultCoder;
 
-@DefaultCoder(AvroCoder.class)
 public class ProcessInfo implements Serializable {
 
   private static final long serialVersionUID = 1L;
